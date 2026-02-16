@@ -50,6 +50,7 @@ app.prepare().then(() => {
             if (players.has(socket.id)) {
                 const player = players.get(socket.id);
                 player.y = data.y;
+                player.distance = data.distance; // Update distance
                 player.rotation = data.rotation;
                 player.isDead = data.isDead;
                 player.score = data.score;

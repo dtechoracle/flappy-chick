@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { io, Socket } from "socket.io-client";
+import { BoostType, BOOSTS } from "./ShopModal";
 
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -8;
-const PIPE_SPEED = 3.5;
+const INITIAL_PIPE_SPEED = 3.5;
 const PIPE_SPAWN_RATE = 1500; // ms
-const BIRD_SIZE = 40;
+const INITIAL_BIRD_SIZE = 40;
 const PIPE_WIDTH = 60;
 const PIPE_GAP = 180;
 
@@ -16,27 +16,55 @@ interface Pipe {
     x: number;
     height: number;
     passed: boolean;
+    gap?: number;
 }
 
-interface Player {
-    id: string;
-    name: string;
-    x: number; // Not strictly needed if fixed x for self, but useful for others if we vary
-    y: number;
-    rotation: number;
-    isDead: boolean;
-    score?: number;
+interface GameProps {
+    inventory: Record<BoostType, number>;
+    setInventory: React.Dispatch<React.SetStateAction<Record<BoostType, number>>>;
+    onGameOver: (coins: number) => void;
 }
 
-export default function Game() {
-    const [playerName, setPlayerName] = useState("");
-    const [hasJoined, setHasJoined] = useState(false);
-    const [socket, setSocket] = useState<Socket | null>(null);
-    const [otherPlayers, setOtherPlayers] = useState<Map<string, Player>>(new Map());
-
+export default function Game({ inventory, setInventory, onGameOver }: GameProps) {
     const [gameStarted, setGameStarted] = useState(false);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
+    const [username, setUsername] = useState('');
+
+    // Boost State (for UI Rendering)
+    const [activeBoosts, setActiveBoosts] = useState<{
+        shield: number; // remaining time ms
+        slowMo: number; // remaining time ms
+        scorex2: number; // remaining time ms
+        tinyBird: number; // remaining time ms
+        widePipes: number; // remaining count
+    }>({
+        shield: 0,
+        slowMo: 0,
+        scorex2: 0,
+        tinyBird: 0,
+        widePipes: 0
+    });
+
+    // Refs for Game Loop Logic (Source of Truth)
+    const activeBoostsRef = useRef<{
+        shield: number;
+        slowMo: number;
+        scorex2: number;
+        tinyBird: number;
+        widePipes: number;
+    }>({
+        shield: 0,
+        slowMo: 0,
+        scorex2: 0,
+        tinyBird: 0,
+        widePipes: 0
+    });
+
+
+    const lastBoostActivation = useRef<number>(0);
+    const [invincibleUntil, setInvincibleUntil] = useState(0);
+    const invincibleUntilRef = useRef(0);
 
     // Game dimensions state
     const [gameHeight, setGameHeight] = useState(600);
@@ -53,6 +81,7 @@ export default function Game() {
     const lastPipeTimeRef = useRef(0);
     const scoreRef = useRef(0);
     const animationFrameId = useRef<number>(0);
+    const lastTimeRef = useRef<number>(0);
 
     // State for rendering
     const [birdPos, setBirdPos] = useState(gameHeight / 2);
@@ -60,50 +89,6 @@ export default function Game() {
     const [pipes, setPipes] = useState<Pipe[]>([]);
     const [showTooltip, setShowTooltip] = useState(true);
 
-    // Initialize Socket
-    useEffect(() => {
-        // Connect to same host
-        const newSocket = io();
-        setSocket(newSocket);
-
-        newSocket.on("current_players", (players: Player[]) => {
-            const map = new Map<string, Player>();
-            players.forEach(p => {
-                if (p.id !== newSocket.id) {
-                    map.set(p.id, p);
-                }
-            });
-            setOtherPlayers(map);
-        });
-
-        newSocket.on("player_joined", (player: Player) => {
-            setOtherPlayers(prev => {
-                const newMap = new Map(prev);
-                newMap.set(player.id, player);
-                return newMap;
-            });
-        });
-
-        newSocket.on("player_moved", (player: Player) => {
-            setOtherPlayers(prev => {
-                const newMap = new Map(prev);
-                newMap.set(player.id, player);
-                return newMap;
-            });
-        });
-
-        newSocket.on("player_left", (id: string) => {
-            setOtherPlayers(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(id);
-                return newMap;
-            });
-        });
-
-        return () => {
-            newSocket.disconnect();
-        }
-    }, []);
 
     // Initialize Audio
     const initAudio = () => {
@@ -118,7 +103,7 @@ export default function Game() {
         }
     };
 
-    const playSound = (type: 'jump' | 'score' | 'die') => {
+    const playSound = (type: 'jump' | 'score' | 'die' | 'powerup' | 'shield_break') => {
         if (!audioContextRef.current) return;
 
         const ctx = audioContextRef.current;
@@ -153,6 +138,22 @@ export default function Game() {
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.3);
+        } else if (type === 'powerup') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'shield_break') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.2);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
         }
     };
 
@@ -174,50 +175,120 @@ export default function Game() {
         return () => window.removeEventListener('resize', handleResize);
     }, [gameStarted, gameOver]);
 
-    // Sync Logic
-    const emitUpdate = () => {
-        if (socket && hasJoined) {
-            const rotation = Math.min(Math.max(birdVelRef.current * 4, -30), 45);
-            socket.emit("fly", {
-                y: birdPosRef.current,
-                rotation: rotation,
-                isDead: gameOver,
-                score: scoreRef.current
+    // Save Score
+    const saveScore = async (finalScore: number) => {
+        const nameToSave = username.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
+        try {
+            await fetch('/api/score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: nameToSave, score: finalScore })
             });
+        } catch (e) {
+            console.error("Failed to save score");
         }
     };
 
-    const spawnPipe = (time: number) => {
-        if (time - lastPipeTimeRef.current > PIPE_SPAWN_RATE) {
-            const minPipeHeight = 50;
-            const maxPipeHeight = gameHeight - PIPE_GAP - minPipeHeight;
-            const height = Math.floor(Math.random() * (maxPipeHeight - minPipeHeight + 1)) + minPipeHeight;
-            pipesRef.current.push({
-                id: time,
-                x: gameWidth,
-                height,
-                passed: false,
+    const handleGameOver = () => {
+        if (!gameOver) {
+            playSound('die');
+            setGameOver(true);
+            setGameStarted(false);
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            onGameOver(scoreRef.current); // Return coins
+            saveScore(scoreRef.current); // Save to DB
+        }
+    };
+
+    // Activate Boost
+    const activateBoost = (type: BoostType, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent jump when clicking button
+
+        const now = Date.now();
+        // Prevent accidental double clicks (500ms cooldown)
+        if (now - lastBoostActivation.current < 500) return;
+
+        if ((inventory[type] || 0) > 0) {
+            lastBoostActivation.current = now;
+            playSound('powerup');
+
+            // Decrement inventory safely
+            setInventory(prev => {
+                const currentCount = prev[type] || 0;
+                if (currentCount <= 0) return prev;
+                return {
+                    ...prev,
+                    [type]: currentCount - 1
+                };
             });
-            lastPipeTimeRef.current = time;
+
+            // Update Ref immediately for game loop
+            const updateRef = (key: keyof typeof activeBoostsRef.current, value: number) => {
+                activeBoostsRef.current = { ...activeBoostsRef.current, [key]: value };
+            };
+
+            if (type === 'shield') updateRef('shield', 10000);
+            if (type === 'slowMo') updateRef('slowMo', 5000);
+            if (type === 'scorex2') updateRef('scorex2', 10000);
+            if (type === 'tinyBird') updateRef('tinyBird', 10000);
+            if (type === 'widePipes') updateRef('widePipes', 5);
+
+            // Sync to state to trigger UI update
+            setActiveBoosts({ ...activeBoostsRef.current });
         }
     };
 
     const updatePhysics = useCallback((time: number) => {
+        if (!lastTimeRef.current) lastTimeRef.current = time;
+        const deltaTime = time - lastTimeRef.current;
+        lastTimeRef.current = time;
+
+        // Decrease timers in Ref
+        activeBoostsRef.current.shield = Math.max(0, activeBoostsRef.current.shield - deltaTime);
+        activeBoostsRef.current.slowMo = Math.max(0, activeBoostsRef.current.slowMo - deltaTime);
+        activeBoostsRef.current.scorex2 = Math.max(0, activeBoostsRef.current.scorex2 - deltaTime);
+        activeBoostsRef.current.tinyBird = Math.max(0, activeBoostsRef.current.tinyBird - deltaTime);
+
+        const currentPipeSpeed = activeBoostsRef.current.slowMo > 0 ? INITIAL_PIPE_SPEED * 0.5 : INITIAL_PIPE_SPEED;
+        const currentBirdSize = activeBoostsRef.current.tinyBird > 0 ? 25 : INITIAL_BIRD_SIZE;
+        const scoreMultiplier = activeBoostsRef.current.scorex2 > 0 ? 2 : 1;
+
         birdVelRef.current += GRAVITY;
         birdPosRef.current += birdVelRef.current;
 
         const rotation = Math.min(Math.max(birdVelRef.current * 4, -30), 45);
         setBirdRotation(rotation);
 
-        if (birdPosRef.current >= gameHeight - BIRD_SIZE || birdPosRef.current <= 0) {
+        if (birdPosRef.current >= gameHeight - currentBirdSize || birdPosRef.current <= 0) {
             handleGameOver();
             return;
         }
 
-        spawnPipe(time);
+        // Spawn Pipe Logic
+        if (time - lastPipeTimeRef.current > PIPE_SPAWN_RATE) {
+            const thisGap = activeBoostsRef.current.widePipes > 0 ? 260 : PIPE_GAP;
+            const minPipeHeight = 50;
+            const maxPipeHeight = gameHeight - thisGap - minPipeHeight;
+            const safeMax = Math.max(minPipeHeight, maxPipeHeight);
+            const height = Math.floor(Math.random() * (safeMax - minPipeHeight + 1)) + minPipeHeight;
+
+            pipesRef.current.push({
+                id: time,
+                x: gameWidth,
+                height,
+                passed: false,
+                gap: thisGap
+            });
+
+            lastPipeTimeRef.current = time;
+
+            if (activeBoostsRef.current.widePipes > 0) {
+                activeBoostsRef.current.widePipes--;
+            }
+        }
 
         pipesRef.current.forEach(pipe => {
-            pipe.x -= PIPE_SPEED;
+            pipe.x -= currentPipeSpeed;
         });
 
         if (pipesRef.current.length > 0 && pipesRef.current[0].x + PIPE_WIDTH < 0) {
@@ -225,16 +296,18 @@ export default function Game() {
         }
 
         const birdLeft = 50 + 5;
-        const birdRight = 50 + BIRD_SIZE - 5;
+        const birdRight = 50 + currentBirdSize - 5;
         const birdTop = birdPosRef.current + 5;
-        const birdBottom = birdPosRef.current + BIRD_SIZE - 5;
+        const birdBottom = birdPosRef.current + currentBirdSize - 5;
 
         let crashed = false;
-        pipesRef.current.forEach(pipe => {
+
+        for (const pipe of pipesRef.current) {
             const pipeLeft = pipe.x;
             const pipeRight = pipe.x + PIPE_WIDTH;
             const topPipeBottom = pipe.height;
-            const bottomPipeTop = pipe.height + PIPE_GAP;
+            const pipeGap = pipe.gap || PIPE_GAP;
+            const bottomPipeTop = pipe.height + pipeGap;
 
             if (birdRight > pipeLeft && birdLeft < pipeRight) {
                 if (birdTop < topPipeBottom || birdBottom > bottomPipeTop) {
@@ -244,40 +317,50 @@ export default function Game() {
 
             if (!pipe.passed && birdLeft > pipeRight) {
                 pipe.passed = true;
-                scoreRef.current += 1;
+                scoreRef.current += (1 * scoreMultiplier);
                 setScore(scoreRef.current);
                 playSound('score');
             }
-        });
-
-        if (crashed) {
-            handleGameOver();
-            return;
         }
 
-        // Sync state for render
+        if (crashed) {
+            // Check if user is currently invincible from a previous shield break
+            if (Date.now() < invincibleUntilRef.current) {
+                // Ignore crash
+            }
+            // Check if shield is active (time > 0)
+            else if (activeBoostsRef.current.shield > 0) {
+                playSound('shield_break');
+                // Deactivate shield immediately upon use
+                activeBoostsRef.current.shield = 0;
+
+                // Activate temporary invincibility (1s) to allow escape
+                const now = Date.now();
+                invincibleUntilRef.current = now + 1000;
+                setInvincibleUntil(now + 1000);
+
+                // Bounce mechanics
+                birdVelRef.current = JUMP_STRENGTH / 2;
+            } else {
+                handleGameOver();
+                return;
+            }
+        }
+
+        // Sync state for render (Throttle this if performance issues arise, but React 18+ handles updates efficiently)
+        // We only really need to sync if the display values change (like timer text descending)
         setBirdPos(birdPosRef.current);
         setPipes([...pipesRef.current]);
 
-        // Emit socket update
-        emitUpdate();
+        // Sync boosts state for UI
+        setActiveBoosts({ ...activeBoostsRef.current });
 
         animationFrameId.current = requestAnimationFrame(updatePhysics);
-    }, [gameHeight, gameWidth, socket, hasJoined]);
-
-    const handleGameOver = () => {
-        if (!gameOver) {
-            playSound('die');
-            setGameOver(true);
-            setGameStarted(false);
-            if (socket && hasJoined) socket.emit("fly", { y: birdPosRef.current, rotation: 90, isDead: true, score: scoreRef.current });
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        }
-    };
+    }, [gameHeight, gameWidth]); // Removed activeBoosts from dependency to avoid recreation loop issues
 
     const jump = useCallback(() => {
         initAudio();
-        if (gameOver || !hasJoined) return;
+        if (gameOver) return;
 
         if (!gameStarted) {
             setGameStarted(true);
@@ -285,16 +368,17 @@ export default function Game() {
             playSound('jump');
             birdVelRef.current = JUMP_STRENGTH;
             lastPipeTimeRef.current = performance.now();
+            lastTimeRef.current = performance.now();
             animationFrameId.current = requestAnimationFrame(updatePhysics);
         } else {
             playSound('jump');
             birdVelRef.current = JUMP_STRENGTH;
         }
-    }, [gameStarted, gameOver, updatePhysics, hasJoined]);
+    }, [gameStarted, gameOver, updatePhysics]);
 
     const restartGame = (e: React.MouseEvent) => {
         e.stopPropagation();
-        initAudio();
+        initAudio(); // Ensure audio context is resumed
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
 
         birdPosRef.current = gameHeight / 2;
@@ -302,6 +386,16 @@ export default function Game() {
         pipesRef.current = [];
         scoreRef.current = 0;
         lastPipeTimeRef.current = performance.now();
+        lastTimeRef.current = performance.now();
+
+        // Reset Boosts Ref and State
+        activeBoostsRef.current = {
+            shield: 0, slowMo: 0, scorex2: 0, tinyBird: 0, widePipes: 0
+        };
+        setActiveBoosts({
+            shield: 0, slowMo: 0, scorex2: 0, tinyBird: 0, widePipes: 0
+        });
+        invincibleUntilRef.current = 0;
 
         setGameOver(false);
         setScore(0);
@@ -309,17 +403,6 @@ export default function Game() {
         setPipes([]);
         setShowTooltip(true);
         setGameStarted(false);
-
-        // Reset rotation for others
-        if (socket && hasJoined) socket.emit("fly", { y: gameHeight / 2, rotation: 0, isDead: false, score: 0 });
-    };
-
-    const joinGame = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (playerName.trim() && socket) {
-            socket.emit("join", playerName);
-            setHasJoined(true);
-        }
     };
 
     useEffect(() => {
@@ -339,145 +422,167 @@ export default function Game() {
         };
     }, []);
 
-    if (!hasJoined) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-sky-300 p-4">
-                <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border-4 border-slate-800 text-center">
-                    <h1 className="text-4xl font-black mb-6 text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,1)] stroke-black" style={{ WebkitTextStroke: '1.5px black' }}>FLAPPY CHICK</h1>
-                    <form onSubmit={joinGame} className="flex flex-col gap-4">
-                        <input
-                            type="text"
-                            placeholder="Enter your name"
-                            className="p-4 rounded-xl border-2 border-slate-300 text-xl font-bold focus:outline-none focus:border-green-500"
-                            value={playerName}
-                            onChange={(e) => setPlayerName(e.target.value)}
-                            maxLength={12}
-                            autoFocus
-                        />
-                        <button
-                            type="submit"
-                            className="p-4 bg-green-500 hover:bg-green-400 text-white font-black text-xl rounded-xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all"
-                            disabled={!playerName.trim()}
-                        >
-                            JOIN GAME
-                        </button>
-                    </form>
-                </div>
-            </div>
-        );
-    }
+    // Render Logic helpers
+    const currentBirdSize = activeBoosts.tinyBird > 0 ? 25 : INITIAL_BIRD_SIZE;
+
 
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-dvh md:h-[600px] md:max-w-md md:rounded-lg md:border-4 md:border-slate-800 bg-sky-300 overflow-hidden shadow-2xl cursor-pointer select-none"
+            className={`relative w-full h-dvh md:h-[600px] md:max-w-md md:rounded-lg md:border-4 md:border-slate-800 bg-sky-300 overflow-hidden shadow-2xl cursor-pointer select-none ${activeBoosts.slowMo > 0 ? 'grayscale-[50%]' : ''}`}
             onClick={jump}
         >
+            {/* Active Boost Indicators */}
+            <div className="absolute top-2 left-2 flex flex-col gap-1 z-50 pointer-events-none">
+                {activeBoosts.shield > 0 && <div className="text-lg bg-blue-500/80 text-white px-2 py-1 rounded animate-pulse">🛡️ Shield: {Math.ceil(activeBoosts.shield / 1000)}s</div>}
+                {activeBoosts.slowMo > 0 && <div className="text-lg bg-slate-500/80 text-white px-2 py-1 rounded">🐌 Slow: {Math.ceil(activeBoosts.slowMo / 1000)}s</div>}
+                {activeBoosts.scorex2 > 0 && <div className="text-lg bg-yellow-500/80 text-white px-2 py-1 rounded">✖️2️⃣ Double Pts: {Math.ceil(activeBoosts.scorex2 / 1000)}s</div>}
+                {activeBoosts.tinyBird > 0 && <div className="text-lg bg-purple-500/80 text-white px-2 py-1 rounded">🐥 Tiny: {Math.ceil(activeBoosts.tinyBird / 1000)}s</div>}
+                {activeBoosts.widePipes > 0 && <div className="text-lg bg-green-800/80 text-white px-2 py-1 rounded">🚪 Wide: {activeBoosts.widePipes} pipes</div>}
+            </div>
+
             <div className="absolute top-20 left-10 text-6xl opacity-50 animate-pulse">☁️</div>
             <div className="absolute top-40 right-20 text-6xl opacity-50 animate-pulse delay-700">☁️</div>
 
-            {pipes.map((pipe) => (
-                <div key={pipe.id}>
-                    <div
-                        className="absolute top-0 bg-green-500 border-x-4 border-b-4 border-slate-800"
-                        style={{ left: pipe.x, width: PIPE_WIDTH, height: pipe.height }}
-                    >
-                        <div className="absolute bottom-2 left-1 right-1 h-4 bg-green-400/30 rounded-full" />
-                    </div>
-                    <div
-                        className="absolute bottom-0 bg-green-500 border-x-4 border-t-4 border-slate-800"
-                        style={{ left: pipe.x, width: PIPE_WIDTH, height: gameHeight - pipe.height - PIPE_GAP }}
-                    >
-                        <div className="absolute top-2 left-1 right-1 h-4 bg-green-400/30 rounded-full" />
-                    </div>
-                </div>
-            ))}
 
+
+            {pipes.map((pipe) => {
+                const pipeGap = pipe.gap || PIPE_GAP;
+                return (
+                    <div key={pipe.id}>
+                        <div
+                            className="absolute top-0 bg-green-500 border-x-4 border-b-4 border-slate-800"
+                            style={{ left: pipe.x, width: PIPE_WIDTH, height: pipe.height }}
+                        >
+                            <div className="absolute bottom-2 left-1 right-1 h-4 bg-green-400/30 rounded-full" />
+                        </div>
+                        <div
+                            className="absolute bottom-0 bg-green-500 border-x-4 border-t-4 border-slate-800"
+                            style={{ left: pipe.x, width: PIPE_WIDTH, height: gameHeight - pipe.height - pipeGap }}
+                        >
+                            <div className="absolute top-2 left-1 right-1 h-4 bg-green-400/30 rounded-full" />
+                        </div>
+                    </div>
+                );
+            })}
+
+            {/* Starting Platform */}
             {!gameStarted && !gameOver && (
                 <div
-                    className="absolute left-[40px] bg-green-600 border-4 border-slate-800 rounded-lg"
+                    className="absolute left-[40px] bg-green-600 border-4 border-slate-800 rounded-lg z-0"
                     style={{
-                        top: birdPos + BIRD_SIZE,
-                        width: BIRD_SIZE + 20,
+                        top: birdPos + INITIAL_BIRD_SIZE,
+                        width: INITIAL_BIRD_SIZE + 20,
                         height: 20,
                         transition: 'opacity 0.5s',
                     }}
                 />
             )}
 
-            {/* Render Other Players (Ghost Birds) */}
-            {Array.from(otherPlayers.values()).map(player => (
-                <div
-                    key={player.id}
-                    className="absolute text-4xl flex items-center justify-center opacity-40 grayscale"
-                    style={{
-                        top: player.y,
-                        left: 50, // All birds aligned horizontally for now unless we sync X properly
-                        width: BIRD_SIZE,
-                        height: BIRD_SIZE,
-                        transform: `rotate(${player.rotation}deg)`,
-                        transition: 'top 0.1s linear, transform 0.1s linear',
-                        zIndex: 5
-                    }}
-                >
-                    🐥
-                    <div className="absolute -top-6 text-xs font-bold bg-black/50 text-white px-2 py-1 rounded whitespace-nowrap">
-                        {player.name}
-                    </div>
-                </div>
-            ))}
-
             {/* Local Player */}
             <div
-                className="absolute text-4xl flex items-center justify-center z-10"
+                className="absolute flex items-center justify-center z-30 transition-transform duration-100"
                 style={{
                     top: birdPos,
                     left: 50,
-                    width: BIRD_SIZE,
-                    height: BIRD_SIZE,
+                    width: currentBirdSize,
+                    height: currentBirdSize,
                     transform: `rotate(${birdRotation}deg)`,
-                    transition: 'transform 0.1s ease-out'
                 }}
             >
-                🐥
+                {/* Bird Emoji */}
+                <div style={{ fontSize: activeBoosts.tinyBird > 0 ? '1.5rem' : '2.25rem' }}>
+                    🐥
+                </div>
+
+                {/* Shield Bubble Overlay */}
+                {activeBoosts.shield > 0 && (
+                    <div className="absolute inset-[-8px] rounded-full border-2 border-blue-400 bg-blue-400/30 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)] z-40 pointer-events-none" />
+                )}
+                {/* Invincibility Flash */}
+                {invincibleUntil > Date.now() && (
+                    <div className="absolute inset-[-8px] rounded-full border-2 border-white/50 bg-white/20 animate-pulse z-40 pointer-events-none" />
+                )}
+
                 {!gameStarted && !gameOver && showTooltip && (
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white text-black text-xs font-bold px-2 py-1 rounded shadow border-2 border-black animate-bounce whitespace-nowrap">
-                        You
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r-2 border-b-2 border-black rotate-45 transform"></div>
+                        Tap to Jump
                     </div>
                 )}
             </div>
 
-            <div className="absolute bottom-0 w-full h-4 bg-emerald-600 border-t-4 border-slate-800 z-20" />
+            <div className="absolute bottom-0 w-full h-4 bg-emerald-600 border-t-4 border-slate-800 z-40" />
 
-            <div className="absolute inset-0 pointer-events-none z-30">
+            <div className="absolute inset-0 pointer-events-none z-50">
                 <div className="absolute top-10 w-full text-center text-6xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] stroke-black" style={{ WebkitTextStroke: '2px black' }}>
                     {score}
                 </div>
 
-                <div className="absolute top-4 right-4 text-white font-bold bg-black/40 px-3 py-1 rounded-full">
-                    Players Online: {otherPlayers.size + 1}
-                </div>
-
                 {!gameStarted && !gameOver && (
-                    <div className="absolute inset-x-0 bottom-20 flex flex-col items-center justify-center text-center">
-                        <div className="animate-pulse bg-black/40 text-white px-6 py-3 rounded-full font-bold border-2 border-white/20 backdrop-blur-sm">
-                            Tap to Flap
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-50">
+                        <div className="mt-32 flex flex-col items-center gap-4">
+                            <input
+                                type="text"
+                                placeholder="Enter Name"
+                                className="px-4 py-2 rounded-full border-4 border-slate-800 font-bold text-center text-black shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-500"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                maxLength={12}
+                            />
+                            <div className="animate-pulse bg-black/40 text-white px-6 py-3 rounded-full font-bold border-2 border-white/20 backdrop-blur-sm mt-4">
+                                Tap screen to Start
+                            </div>
                         </div>
                     </div>
                 )}
 
+                {/* BOOST CONTROLS - POINTER EVENTS AUTO */}
+                {gameStarted && !gameOver && (
+                    <div className="absolute bottom-6 w-full flex justify-center gap-2 pointer-events-auto px-2">
+                        {BOOSTS.map(boost => (
+                            <button
+                                key={boost.id}
+                                onClick={(e) => activateBoost(boost.id, e)}
+                                disabled={(inventory[boost.id] || 0) <= 0}
+                                className={`
+                                    relative w-12 h-12 rounded-lg border-2 font-bold text-xl flex items-center justify-center shadow-lg transition-transform active:scale-90
+                                    ${(inventory[boost.id] || 0) > 0
+                                        ? 'bg-white border-white/50 opacity-100 ring-2 ring-black/20'
+                                        : 'bg-black/30 border-white/10 opacity-40 grayscale'}
+                                `}
+                            >
+                                {boost.emoji}
+                                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full border border-white">
+                                    {inventory[boost.id] || 0}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+
                 {gameOver && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white backdrop-blur-sm animate-in fade-in zoom-in duration-300 pointer-events-auto">
                         <h2 className="text-6xl font-black text-red-500 mb-6 drop-shadow-[0_4px_0_rgba(0,0,0,1)] stroke-black" style={{ WebkitTextStroke: '2px black' }}>GAME OVER</h2>
                         <div className="bg-yellow-100 p-8 rounded-2xl border-4 border-black text-center shadow-[0_8px_0_rgba(0,0,0,1)]">
-                            <p className="text-xl text-yellow-800 font-bold mb-2 uppercase tracking-wide">Score</p>
-                            <p className="text-7xl font-black text-black mb-6">{score}</p>
+                            <p className="text-xl text-yellow-800 font-bold mb-2 uppercase tracking-wide">Score / Coins</p>
+                            <p className="text-7xl font-black text-black mb-6">+{score}</p>
+
                             <button
-                                className="pointer-events-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-white font-black text-xl rounded-xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all"
+                                className="pointer-events-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-white font-black text-xl rounded-xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all mb-4 w-full"
                                 onClick={restartGame}
                             >
                                 PLAY AGAIN
+                            </button>
+                            <button
+                                className="pointer-events-auto px-8 py-4 bg-slate-500 hover:bg-slate-400 text-white font-black text-xl rounded-xl border-b-4 border-slate-700 active:border-b-0 active:translate-y-1 transition-all w-full"
+                                onClick={() => {
+                                    onGameOver(score); // Ensure coins are saved before exit
+                                    // Parent handles navigation
+                                }}
+                            >
+                                HOME (SHOP)
                             </button>
                         </div>
                     </div>
