@@ -1,6 +1,24 @@
 {
   "scores": [
     {
+      "id": "1771321994268",
+      "username": "Guest-492",
+      "score": 2,
+      "timestamp": "2026-02-17T09:53:14.268Z"
+    },
+    {
+      "id": "1771322041279",
+      "username": "Guest-366",
+      "score": 2,
+      "timestamp": "2026-02-17T09:54:01.279Z"
+    },
+    {
+      "id": "1771322070907",
+      "username": "Guest-151",
+      "score": 1,
+      "timestamp": "2026-02-17T09:54:30.907Z"
+    },
+    {
       "id": "1771321824702",
       "username": "Guest-326",
       "score": 0,
@@ -17,6 +35,18 @@
       "username": "Guest-70",
       "score": 0,
       "timestamp": "2026-02-17T09:50:52.867Z"
+    },
+    {
+      "id": "1771321986106",
+      "username": "Guest-663",
+      "score": 0,
+      "timestamp": "2026-02-17T09:53:06.106Z"
+    },
+    {
+      "id": "1771322029591",
+      "username": "Guest-788",
+      "score": 0,
+      "timestamp": "2026-02-17T09:53:49.591Z"
     }
   ],
   "users": []
