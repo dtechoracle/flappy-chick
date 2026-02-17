@@ -30,9 +30,23 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# environment variables - NEVER commit these!
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Keep the example file for reference
+!.env.example
+
+# database backups and old files
 db.json
+db.json.backup
+lib/db.ts.backup
+*.backup
+
 # vercel
 .vercel
 
@@ -40,3 +54,29 @@ db.json
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# logs
+logs
+*.log
+
+# testing
+.env.test
+
+# temporary files
+tmp/
+temp/

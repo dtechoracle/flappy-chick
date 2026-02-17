@@ -1,0 +1,79 @@
+# What Gets Ignored (NOT pushed to GitHub)
+
+## ✅ IGNORED - Safe from Git:
+
+### Environment Files (SENSITIVE!)
+- .env.local              # Your Supabase credentials
+- .env                    # Any other env file
+- .env*.local             # All local environment variants
+
+### Database Files
+- db.json                 # Old JSON database
+- db.json.backup          # Backup of old DB
+- lib/db.ts.backup        # Backup of old DB handler
+- *.backup                # Any backup files
+
+### Build & Dependencies
+- node_modules/           # NPM packages
+- .next/                  # Next.js build output
+- dist/                   # Distribution builds
+- *.tsbuildinfo          # TypeScript build info
+
+### IDE & OS
+- .DS_Store              # macOS Finder metadata
+- .vscode/*              # VS Code settings (except extensions.json)
+- .idea                  # JetBrains IDEs
+- *.swp, *.swo           # Vim swap files
+- Thumbs.db              # Windows thumbnails
+
+### Logs
+- *.log                  # All log files
+- npm-debug.log*
+- yarn-debug.log*
+
+---
+
+## 📤 TRACKED - Will be pushed to GitHub:
+
+### Source Code
+- app/                   # All application code
+- components/            # React components
+- lib/prisma.ts         # Prisma client (safe to share)
+- prisma/schema.prisma  # Database schema (safe to share)
+
+### Configuration (Safe)
+- .env.example          # Template WITHOUT real credentials
+- package.json          # Dependencies list
+- tsconfig.json         # TypeScript config
+- next.config.ts        # Next.js config
+- tailwind.config.ts    # Tailwind config
+
+### Documentation
+- README.md
+- SUPABASE_SETUP.md
+- .gitignore.info       # This file!
+
+---
+
+## 🔒 Security Notes:
+
+1. **.env.local** contains your REAL database password - NEVER commit this!
+2. **.env.example** is safe - it has placeholders, not real credentials
+3. **db.json** is ignored - even though old, better safe than sorry
+4. **Backup files** (.backup) are all ignored automatically
+
+---
+
+## 🧪 To Verify:
+
+Run: `git status`
+
+If you see:
+- ❌ .env.local listed → STOP! Remove it: `git reset .env.local`
+- ✅ .env.example listed → Good! This is the template
+
+If you accidentally committed .env.local:
+```bash
+git rm --cached .env.local
+git commit -m "Remove sensitive env file"
+```
