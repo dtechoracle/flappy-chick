@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { BoostType, BOOSTS } from "./ShopModal";
+import Leaderboard from "./Leaderboard";
 
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -8;
@@ -175,9 +176,19 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
         return () => window.removeEventListener('resize', handleResize);
     }, [gameStarted, gameOver]);
 
+    // Load username from localStorage
+    useEffect(() => {
+        const storedName = localStorage.getItem('flappy-username');
+        if (storedName) setUsername(storedName);
+    }, []);
+
     // Save Score
     const saveScore = async (finalScore: number) => {
         const nameToSave = username.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
+        if (username.trim()) {
+            localStorage.setItem('flappy-username', username.trim());
+        }
+
         try {
             await fetch('/api/score', {
                 method: 'POST',
@@ -519,20 +530,45 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
                 </div>
 
                 {!gameStarted && !gameOver && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-50">
-                        <div className="mt-32 flex flex-col items-center gap-4">
-                            <input
-                                type="text"
-                                placeholder="Enter Name"
-                                className="px-4 py-2 rounded-full border-4 border-slate-800 font-bold text-center text-black shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-500"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                maxLength={12}
-                            />
-                            <div className="animate-pulse bg-black/40 text-white px-6 py-3 rounded-full font-bold border-2 border-white/20 backdrop-blur-sm mt-4">
-                                Tap screen to Start
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-50 bg-slate-900">
+
+                        {/* Title Logo */}
+                        <div className="mb-6 transform -rotate-3">
+                            <h1 className="text-5xl font-black text-yellow-400 drop-shadow-[0_4px_0_rgba(0,0,0,1)] stroke-black" style={{ WebkitTextStroke: '2px black' }}>
+                                FLAPPY<br />CHICK
+                            </h1>
+                        </div>
+
+                        {/* Leaderboard */}
+                        <div className="mb-6">
+                            <Leaderboard />
+                        </div>
+
+                        {/* Login / Start Card */}
+                        <div className="bg-white p-6 rounded-2xl border-4 border-slate-800 shadow-[0_8px_0_rgba(0,0,0,0.5)] flex flex-col items-center gap-4 w-[280px] animate-in slide-in-from-bottom-10 fade-in duration-300">
+                            <div className="w-full">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Player Name</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter Name"
+                                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 font-bold text-center text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all placeholder:text-slate-300"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    maxLength={12}
+                                />
                             </div>
+
+                            <button
+                                className="w-full bg-green-500 hover:bg-green-400 text-white font-black py-4 rounded-xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all text-lg shadow-lg flex items-center justify-center gap-2"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    jump();
+                                }}
+                            >
+                                <span>PLAY</span>
+                                <span className="text-2xl">▶️</span>
+                            </button>
                         </div>
                     </div>
                 )}

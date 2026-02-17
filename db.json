@@ -1,4 +1,23 @@
 {
-    "scores": [],
-    "users": []
+  "scores": [
+    {
+      "id": "1771321824702",
+      "username": "Guest-326",
+      "score": 0,
+      "timestamp": "2026-02-17T09:50:24.702Z"
+    },
+    {
+      "id": "1771321835235",
+      "username": "Guest-245",
+      "score": 0,
+      "timestamp": "2026-02-17T09:50:35.235Z"
+    },
+    {
+      "id": "1771321852867",
+      "username": "Guest-70",
+      "score": 0,
+      "timestamp": "2026-02-17T09:50:52.867Z"
+    }
+  ],
+  "users": []
 }
