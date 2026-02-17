@@ -11,6 +11,8 @@ model User {
   id        String   @id @default(cuid())
   username  String   @unique
   email     String?  @unique
+  coins     Int      @default(0)
+  inventory String   @default("{\"shield\":0,\"slowMo\":0,\"scorex2\":0,\"tinyBird\":0,\"widePipes\":0}")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   

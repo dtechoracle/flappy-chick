@@ -195,10 +195,20 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         return () => window.removeEventListener('resize', handleResize);
     }, [gameStarted, gameOver]);
 
-    // Load username from localStorage
+    // Load username from session (server-side)
     useEffect(() => {
-        const storedName = localStorage.getItem('flappy-username');
-        if (storedName) setUsername(storedName);
+        const fetchSession = async () => {
+            try {
+                const res = await fetch('/api/auth/session');
+                const data = await res.json();
+                if (data.authenticated && data.username) {
+                    setUsername(data.username);
+                }
+            } catch (error) {
+                console.error('Failed to load session:', error);
+            }
+        };
+        fetchSession();
     }, []);
 
     // Socket.io Multiplayer Setup
@@ -268,10 +278,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
     // Save Score
     const saveScore = async (finalScore: number) => {
         const nameToSave = username.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
-        if (username.trim()) {
-            localStorage.setItem('flappy-username', username.trim());
-        }
-
+        
         try {
             await fetch('/api/score', {
                 method: 'POST',
@@ -481,11 +488,15 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         if (gameOver) return;
 
         if (!gameStarted) {
-            // Save username to localStorage when starting the game
+            // Save username to session when starting the game
             if (username.trim()) {
-                localStorage.setItem('flappy-username', username.trim());
+                fetch('/api/auth/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username.trim() })
+                }).catch(err => console.error('Failed to save session:', err));
             }
-
+            
             setGameStarted(true);
             setShowTooltip(false);
             playSound('jump');
