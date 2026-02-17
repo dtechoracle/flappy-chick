@@ -10,10 +10,10 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>("single");
+  const [loading, setLoading] = useState(true);
 
   // Currency & Inventory State
-  // Initialize with some coins so they can try the shop immediately
-  const [coins, setCoins] = useState(1000);
+  const [coins, setCoins] = useState(0);
   const [inventory, setInventory] = useState<Record<BoostType, number>>({
     shield: 0,
     slowMo: 0,
@@ -22,23 +22,44 @@ export default function Home() {
     widePipes: 0
   });
 
-  // Load from local storage on mount
+  // Load from database on mount
   useEffect(() => {
-    const savedCoins = localStorage.getItem('flappy_coins_v3');
-    if (savedCoins) setCoins(parseInt(savedCoins));
-
-    const savedInv = localStorage.getItem('flappy_inventory_v3');
-    if (savedInv) setInventory(JSON.parse(savedInv));
+    const loadUserData = async () => {
+      try {
+        const res = await fetch('/api/user');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setCoins(data.data.coins);
+            setInventory(data.data.inventory);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUserData();
   }, []);
 
-  // Save to local storage on change
+  // Save to database when coins or inventory change
   useEffect(() => {
-    localStorage.setItem('flappy_coins_v3', coins.toString());
-  }, [coins]);
-
-  useEffect(() => {
-    localStorage.setItem('flappy_inventory_v3', JSON.stringify(inventory));
-  }, [inventory]);
+    if (!loading) {
+      const saveUserData = async () => {
+        try {
+          await fetch('/api/user', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ coins, inventory })
+          });
+        } catch (error) {
+          console.error('Failed to save user data:', error);
+        }
+      };
+      saveUserData();
+    }
+  }, [coins, inventory, loading]);
 
   const handleBuy = (item: BoostItem) => {
     if (coins >= item.cost) {
@@ -54,6 +75,16 @@ export default function Home() {
     setCoins(prev => prev + sessionCoins);
     setIsPlaying(false);
   };
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-sky-300">
+        <div className="text-white text-2xl font-bold animate-pulse">
+          Loading... 🐥
+        </div>
+      </main>
+    );
+  }
 
   if (isPlaying) {
     return (
