@@ -102,38 +102,52 @@ export default function Home() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
       {/* Beach Background */}
-      <div className="absolute inset-0 z-0 bg-linear-to-b from-sky-300 to-sky-100"></div>
-      <div className="absolute bottom-0 w-full h-1/3 bg-[#F4D03F] border-t-8 border-[#D4AC0D]"></div> {/* Sand */}
+      <div className="absolute inset-0 z-0 bg-linear-to-b from-sky-400 via-sky-300 to-sky-200"></div>
+      <div className="absolute bottom-0 w-full h-1/3 bg-gradient-to-t from-[#F4D03F] to-[#F7DC6F] border-t-8 border-[#D4AC0D]"></div>
 
-      {/* Ocean */}
+      {/* Ocean Waves */}
       <div className="absolute bottom-1/3 w-full h-24 bg-blue-500 opacity-80 animate-pulse"></div>
       <div className="absolute bottom-[35%] w-full h-20 bg-blue-400 opacity-60 animate-pulse delay-75"></div>
 
       {/* Sun */}
-      <div className="absolute top-10 right-10 w-24 h-24 bg-yellow-400 rounded-full shadow-[0_0_40px_rgba(255,200,0,0.8)] animate-pulse"></div>
+      <div className="absolute top-10 right-10 w-28 h-28 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full shadow-[0_0_60px_rgba(255,200,0,0.8)] animate-pulse"></div>
 
-      {/* Palm Trees (Simple CSS Art/Emoji for now) */}
-      <div className="absolute bottom-[30%] left-10 text-9xl transform -scale-x-100 z-10">🌴</div>
-      <div className="absolute bottom-[28%] right-5 text-9xl z-10">🌴</div>
+      {/* Floating Islands/Clouds */}
+      <div className="absolute top-1/4 left-5 text-8xl opacity-30 animate-bounce">☁️</div>
+      <div className="absolute top-1/3 right-10 text-7xl opacity-25 animate-bounce delay-300">☁️</div>
 
-      <div className="z-20 flex flex-col items-center gap-8">
-        {/* Title */}
-        <div className="text-center animate-bounce">
-          <h1 className="text-6xl md:text-8xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.4)] stroke-black"
+      {/* Palm Trees */}
+      <div className="absolute bottom-[30%] left-10 text-9xl transform -scale-x-100 z-10 drop-shadow-lg">🌴</div>
+      <div className="absolute bottom-[28%] right-5 text-9xl z-10 drop-shadow-lg">🌴</div>
+
+      <div className="z-20 flex flex-col items-center gap-8 px-4">
+        {/* Title with better animation */}
+        <div className="text-center">
+          <div className="mb-4 animate-bounce">
+            <div className="text-8xl mb-2">🐥</div>
+          </div>
+          <h1 className="text-6xl md:text-8xl font-black text-white drop-shadow-[0_6px_0_rgba(0,0,0,0.5)] stroke-black mb-2 transform hover:scale-105 transition-transform"
             style={{ WebkitTextStroke: '3px black' }}>
             FLAPPY <br /> CHICK
           </h1>
+          <p className="text-yellow-300 font-bold text-lg drop-shadow-md">
+            Fly, Compete & Conquer! 🏆
+          </p>
         </div>
 
-        <div className="flex flex-col gap-4 w-64">
+        <div className="flex flex-col gap-4 w-full max-w-sm">
           <button
             onClick={() => {
               setGameMode("single");
               setIsPlaying(true);
             }}
-            className="bg-green-500 hover:bg-green-400 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-green-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl flex items-center justify-center gap-2"
+            className="group relative bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-green-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
-            <span>🐥</span> SINGLE PLAYER
+            <span className="flex items-center gap-3">
+              <span className="text-3xl group-hover:scale-110 transition-transform">🐥</span>
+              <span>SINGLE PLAYER</span>
+            </span>
+            <span className="text-green-200 text-sm font-bold">SOLO</span>
           </button>
 
           <button
@@ -141,21 +155,34 @@ export default function Home() {
               setGameMode("multiplayer");
               setIsPlaying(true);
             }}
-            className="bg-blue-500 hover:bg-blue-400 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-blue-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl flex items-center justify-center gap-2"
+            className="group relative bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-blue-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
-            <span>👥</span> MULTIPLAYER
+            <span className="flex items-center gap-3">
+              <span className="text-3xl group-hover:scale-110 transition-transform">👥</span>
+              <span>MULTIPLAYER</span>
+            </span>
+            <span className="text-blue-200 text-sm font-bold animate-pulse">LIVE</span>
           </button>
 
           <button
             onClick={() => setShowShop(true)}
-            className="bg-orange-400 hover:bg-orange-300 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-orange-600 active:border-b-0 active:translate-y-2 transition-all shadow-xl flex items-center justify-center gap-2"
+            className="group relative bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-300 hover:to-orange-400 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-orange-700 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
-            <span>🛒</span> SHOP
+            <span className="flex items-center gap-3">
+              <span className="text-3xl group-hover:scale-110 transition-transform">🛒</span>
+              <span>SHOP</span>
+            </span>
+            <span className="text-orange-200 text-sm font-bold">BUY ITEMS</span>
           </button>
         </div>
 
-        <div className="bg-black/20 backdrop-blur-md px-6 py-2 rounded-full text-white font-bold border-2 border-white/30">
-          Your Coins: 💰 {coins}
+        {/* Coins Display - Enhanced */}
+        <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 px-8 py-4 rounded-2xl text-black font-black border-4 border-yellow-600 shadow-xl flex items-center gap-3 transform hover:scale-105 transition-transform">
+          <span className="text-3xl">💰</span>
+          <div>
+            <p className="text-xs uppercase tracking-wider opacity-80">Your Balance</p>
+            <p className="text-3xl">{coins.toLocaleString()}</p>
+          </div>
         </div>
       </div>
 
