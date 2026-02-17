@@ -58,6 +58,10 @@ next-env.d.ts
 prisma/*.db
 prisma/*.db-journal
 
+# Keep migrations folder for version control
+!prisma/migrations/
+!prisma/migrations/**
+
 # IDE
 .vscode/*
 !.vscode/extensions.json
