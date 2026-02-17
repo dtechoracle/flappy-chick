@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import Game from "@/components/Game";
 import ShopModal, { BoostType, BoostItem } from "@/components/ShopModal";
 
+export type GameMode = "single" | "multiplayer";
+
 export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>("single");
 
   // Currency & Inventory State
   // Initialize with some coins so they can try the shop immediately
@@ -59,6 +62,7 @@ export default function Home() {
           inventory={inventory}
           setInventory={setInventory}
           onGameOver={(earnedCoins) => handleGameOverReturn(earnedCoins)}
+          gameMode={gameMode}
         />
       </main>
     );
@@ -67,7 +71,7 @@ export default function Home() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
       {/* Beach Background */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-sky-300 to-sky-100"></div>
+      <div className="absolute inset-0 z-0 bg-linear-to-b from-sky-300 to-sky-100"></div>
       <div className="absolute bottom-0 w-full h-1/3 bg-[#F4D03F] border-t-8 border-[#D4AC0D]"></div> {/* Sand */}
 
       {/* Ocean */}
@@ -92,10 +96,23 @@ export default function Home() {
 
         <div className="flex flex-col gap-4 w-64">
           <button
-            onClick={() => setIsPlaying(true)}
-            className="bg-green-500 hover:bg-green-400 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-green-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl"
+            onClick={() => {
+              setGameMode("single");
+              setIsPlaying(true);
+            }}
+            className="bg-green-500 hover:bg-green-400 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-green-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl flex items-center justify-center gap-2"
           >
-            START
+            <span>🐥</span> SINGLE PLAYER
+          </button>
+
+          <button
+            onClick={() => {
+              setGameMode("multiplayer");
+              setIsPlaying(true);
+            }}
+            className="bg-blue-500 hover:bg-blue-400 text-white text-2xl font-black py-4 px-8 rounded-2xl border-b-8 border-blue-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl flex items-center justify-center gap-2"
+          >
+            <span>👥</span> MULTIPLAYER
           </button>
 
           <button

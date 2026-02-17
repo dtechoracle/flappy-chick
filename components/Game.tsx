@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 import { BoostType, BOOSTS } from "./ShopModal";
 import Leaderboard from "./Leaderboard";
+import { GameMode } from "@/app/page";
 
 const GRAVITY = 0.6;
 const JUMP_STRENGTH = -8;
@@ -20,17 +22,34 @@ interface Pipe {
     gap?: number;
 }
 
+interface OtherPlayer {
+    id: string;
+    name: string;
+    y: number;
+    rotation: number;
+    isDead: boolean;
+    score?: number;
+    distance?: number;
+}
+
 interface GameProps {
     inventory: Record<BoostType, number>;
     setInventory: React.Dispatch<React.SetStateAction<Record<BoostType, number>>>;
     onGameOver: (coins: number) => void;
+    gameMode: GameMode;
 }
 
-export default function Game({ inventory, setInventory, onGameOver }: GameProps) {
+export default function Game({ inventory, setInventory, onGameOver, gameMode }: GameProps) {
     const [gameStarted, setGameStarted] = useState(false);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
     const [username, setUsername] = useState('');
+
+    // Multiplayer State
+    const [otherPlayers, setOtherPlayers] = useState<Record<string, OtherPlayer>>({});
+    const [playerCount, setPlayerCount] = useState(1);
+    const socketRef = useRef<Socket | null>(null);
+    const distanceRef = useRef(0); // Track horizontal distance traveled for multiplayer sync
 
     // Boost State (for UI Rendering)
     const [activeBoosts, setActiveBoosts] = useState<{
@@ -182,6 +201,70 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
         if (storedName) setUsername(storedName);
     }, []);
 
+    // Socket.io Multiplayer Setup
+    useEffect(() => {
+        if (gameMode === "multiplayer") {
+            // Connect to Socket.io server
+            const socket = io("http://localhost:3000", {
+                transports: ["websocket", "polling"],
+            });
+
+            socketRef.current = socket;
+
+            socket.on("connect", () => {
+                console.log("Connected to multiplayer server:", socket.id);
+                // Join the game with username
+                const playerName = username || `Guest-${Math.floor(Math.random() * 1000)}`;
+                socket.emit("join", playerName);
+            });
+
+            // Receive initial players list
+            socket.on("current_players", (players: OtherPlayer[]) => {
+                const playersMap: Record<string, OtherPlayer> = {};
+                players.forEach(player => {
+                    if (player.id !== socket.id) {
+                        playersMap[player.id] = player;
+                    }
+                });
+                setOtherPlayers(playersMap);
+                setPlayerCount(players.length + 1); // +1 for self
+            });
+
+            // New player joined
+            socket.on("player_joined", (player: OtherPlayer) => {
+                if (player.id !== socket.id) {
+                    setOtherPlayers(prev => ({
+                        ...prev,
+                        [player.id]: player
+                    }));
+                    setPlayerCount(prev => prev + 1);
+                }
+            });
+
+            // Player moved
+            socket.on("player_moved", (player: OtherPlayer) => {
+                setOtherPlayers(prev => ({
+                    ...prev,
+                    [player.id]: player
+                }));
+            });
+
+            // Player left
+            socket.on("player_left", (playerId: string) => {
+                setOtherPlayers(prev => {
+                    const newPlayers = { ...prev };
+                    delete newPlayers[playerId];
+                    return newPlayers;
+                });
+                setPlayerCount(prev => Math.max(1, prev - 1));
+            });
+
+            return () => {
+                socket.disconnect();
+            };
+        }
+    }, [gameMode, username]);
+
     // Save Score
     const saveScore = async (finalScore: number) => {
         const nameToSave = username.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
@@ -206,6 +289,18 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
             setGameOver(true);
             setGameStarted(false);
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+
+            // Emit death status in multiplayer
+            if (gameMode === "multiplayer" && socketRef.current) {
+                socketRef.current.emit("fly", {
+                    y: birdPosRef.current,
+                    distance: distanceRef.current,
+                    rotation: birdRotation,
+                    isDead: true,
+                    score: scoreRef.current
+                });
+            }
+
             onGameOver(scoreRef.current); // Return coins
             saveScore(scoreRef.current); // Save to DB
         }
@@ -366,6 +461,18 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
         // Sync boosts state for UI
         setActiveBoosts({ ...activeBoostsRef.current });
 
+        // Emit position to server in multiplayer mode (throttled to ~every 3 frames = ~20 updates/sec)
+        if (gameMode === "multiplayer" && socketRef.current && animationFrameId.current % 3 === 0) {
+            distanceRef.current += currentPipeSpeed;
+            socketRef.current.emit("fly", {
+                y: birdPosRef.current,
+                distance: distanceRef.current,
+                rotation: rotation,
+                isDead: false,
+                score: scoreRef.current
+            });
+        }
+
         animationFrameId.current = requestAnimationFrame(updatePhysics);
     }, [gameHeight, gameWidth]); // Removed activeBoosts from dependency to avoid recreation loop issues
 
@@ -396,6 +503,7 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
         birdVelRef.current = 0;
         pipesRef.current = [];
         scoreRef.current = 0;
+        distanceRef.current = 0; // Reset multiplayer distance
         lastPipeTimeRef.current = performance.now();
         lastTimeRef.current = performance.now();
 
@@ -440,9 +548,17 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
     return (
         <div
             ref={containerRef}
-            className={`relative w-full h-dvh md:h-[600px] md:max-w-md md:rounded-lg md:border-4 md:border-slate-800 bg-sky-300 overflow-hidden shadow-2xl cursor-pointer select-none ${activeBoosts.slowMo > 0 ? 'grayscale-[50%]' : ''}`}
+            className={`relative w-full h-dvh md:h-[600px] md:max-w-md md:rounded-lg md:border-4 md:border-slate-800 bg-sky-300 overflow-hidden shadow-2xl cursor-pointer select-none ${activeBoosts.slowMo > 0 ? 'grayscale-50' : ''}`}
             onClick={jump}
         >
+            {/* Multiplayer Player Count Indicator */}
+            {gameMode === "multiplayer" && (
+                <div className="absolute top-2 right-2 bg-blue-500/90 text-white px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 z-50 pointer-events-none border-2 border-white/30">
+                    <span>👥</span>
+                    <span>{playerCount} Player{playerCount !== 1 ? 's' : ''}</span>
+                </div>
+            )}
+
             {/* Active Boost Indicators */}
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-50 pointer-events-none">
                 {activeBoosts.shield > 0 && <div className="text-lg bg-blue-500/80 text-white px-2 py-1 rounded animate-pulse">🛡️ Shield: {Math.ceil(activeBoosts.shield / 1000)}s</div>}
@@ -489,6 +605,33 @@ export default function Game({ inventory, setInventory, onGameOver }: GameProps)
                     }}
                 />
             )}
+
+            {/* Other Players (Multiplayer) */}
+            {gameMode === "multiplayer" && Object.values(otherPlayers).map((player) => (
+                <div
+                    key={player.id}
+                    className="absolute flex flex-col items-center z-20 transition-all duration-100"
+                    style={{
+                        top: player.y,
+                        left: 50,
+                        width: INITIAL_BIRD_SIZE,
+                        height: INITIAL_BIRD_SIZE,
+                        transform: `rotate(${player.rotation}deg)`,
+                        opacity: player.isDead ? 0.3 : 0.7,
+                    }}
+                >
+                    {/* Other Player Name Tag */}
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap pointer-events-none">
+                        {player.name}
+                        {player.score !== undefined && ` (${player.score})`}
+                    </div>
+
+                    {/* Other Player Bird */}
+                    <div style={{ fontSize: '2rem' }}>
+                        {player.isDead ? '💀' : '🐦'}
+                    </div>
+                </div>
+            ))}
 
             {/* Local Player */}
             <div
