@@ -103,14 +103,14 @@ export default function Home() {
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden">
       {/* Beach Background */}
       <div className="absolute inset-0 z-0 bg-linear-to-b from-sky-400 via-sky-300 to-sky-200"></div>
-      <div className="absolute bottom-0 w-full h-1/3 bg-gradient-to-t from-[#F4D03F] to-[#F7DC6F] border-t-8 border-[#D4AC0D]"></div>
+      <div className="absolute bottom-0 w-full h-1/3 bg-linear-to-t from-[#F4D03F] to-[#F7DC6F] border-t-8 border-[#D4AC0D]"></div>
 
       {/* Ocean Waves */}
       <div className="absolute bottom-1/3 w-full h-24 bg-blue-500 opacity-80 animate-pulse"></div>
       <div className="absolute bottom-[35%] w-full h-20 bg-blue-400 opacity-60 animate-pulse delay-75"></div>
 
       {/* Sun */}
-      <div className="absolute top-10 right-10 w-28 h-28 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full shadow-[0_0_60px_rgba(255,200,0,0.8)] animate-pulse"></div>
+      <div className="absolute top-10 right-10 w-28 h-28 bg-linear-to-br from-yellow-300 to-orange-400 rounded-full shadow-[0_0_60px_rgba(255,200,0,0.8)] animate-pulse"></div>
 
       {/* Floating Islands/Clouds */}
       <div className="absolute top-1/4 left-5 text-8xl opacity-30 animate-bounce">☁️</div>
@@ -141,7 +141,7 @@ export default function Home() {
               setGameMode("single");
               setIsPlaying(true);
             }}
-            className="group relative bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-green-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
+            className="group relative bg-linear-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-green-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
             <span className="flex items-center gap-3">
               <span className="text-3xl group-hover:scale-110 transition-transform">🐥</span>
@@ -155,7 +155,7 @@ export default function Home() {
               setGameMode("multiplayer");
               setIsPlaying(true);
             }}
-            className="group relative bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-blue-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
+            className="group relative bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-blue-800 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
             <span className="flex items-center gap-3">
               <span className="text-3xl group-hover:scale-110 transition-transform">👥</span>
@@ -166,7 +166,7 @@ export default function Home() {
 
           <button
             onClick={() => setShowShop(true)}
-            className="group relative bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-300 hover:to-orange-400 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-orange-700 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
+            className="group relative bg-linear-to-r from-orange-400 to-orange-500 hover:from-orange-300 hover:to-orange-400 text-white text-2xl font-black py-5 px-8 rounded-2xl border-b-8 border-orange-700 active:border-b-0 active:translate-y-2 transition-all shadow-2xl flex items-center justify-between overflow-hidden"
           >
             <span className="flex items-center gap-3">
               <span className="text-3xl group-hover:scale-110 transition-transform">🛒</span>
@@ -177,7 +177,7 @@ export default function Home() {
         </div>
 
         {/* Coins Display - Enhanced */}
-        <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 px-8 py-4 rounded-2xl text-black font-black border-4 border-yellow-600 shadow-xl flex items-center gap-3 transform hover:scale-105 transition-transform">
+        <div className="bg-linear-to-r from-yellow-400 to-yellow-500 px-8 py-4 rounded-2xl text-black font-black border-4 border-yellow-600 shadow-xl flex items-center gap-3 transform hover:scale-105 transition-transform">
           <span className="text-3xl">💰</span>
           <div>
             <p className="text-xs uppercase tracking-wider opacity-80">Your Balance</p>

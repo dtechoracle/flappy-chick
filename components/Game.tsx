@@ -278,7 +278,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
     // Save Score
     const saveScore = async (finalScore: number) => {
         const nameToSave = username.trim() || `Guest-${Math.floor(Math.random() * 1000)}`;
-        
+
         try {
             await fetch('/api/score', {
                 method: 'POST',
@@ -496,7 +496,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                     body: JSON.stringify({ username: username.trim() })
                 }).catch(err => console.error('Failed to save session:', err));
             }
-            
+
             setGameStarted(true);
             setShowTooltip(false);
             playSound('jump');
@@ -542,14 +542,23 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't trigger jump if user is typing in an input field
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+                return;
+            }
+
             if (e.code === "Space") {
                 e.preventDefault();
-                jump();
+                // Only jump if game has started
+                if (gameStarted && !gameOver) {
+                    jump();
+                }
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [jump]);
+    }, [jump, gameStarted, gameOver]);
 
     useEffect(() => {
         return () => {
@@ -565,11 +574,16 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         <div
             ref={containerRef}
             className={`relative w-full h-dvh md:h-[600px] md:max-w-md md:rounded-lg md:border-4 md:border-slate-800 bg-sky-300 overflow-hidden shadow-2xl cursor-pointer select-none ${activeBoosts.slowMo > 0 ? 'grayscale-50' : ''}`}
-            onClick={jump}
+            onClick={(e) => {
+                // Only jump if game has started and not in menu/game over
+                if (gameStarted && !gameOver) {
+                    jump();
+                }
+            }}
         >
             {/* Multiplayer Player Count Indicator - Enhanced */}
             {gameMode === "multiplayer" && (
-                <div className="absolute top-2 right-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 z-50 pointer-events-none border-2 border-white/40 shadow-lg backdrop-blur-sm">
+                <div className="absolute top-2 right-2 bg-linear-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 z-50 pointer-events-none border-2 border-white/40 shadow-lg backdrop-blur-sm">
                     <span className="text-lg animate-pulse">👥</span>
                     <div className="flex flex-col leading-tight">
                         <span className="text-xs opacity-80 uppercase">Online</span>
@@ -581,7 +595,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             {/* Active Boost Indicators - Enhanced */}
             <div className="absolute top-2 left-2 flex flex-col gap-2 z-50 pointer-events-none">
                 {activeBoosts.shield > 0 && (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-xl border-2 border-blue-300 shadow-lg backdrop-blur-sm animate-pulse">
+                    <div className="flex items-center gap-2 bg-linear-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-xl border-2 border-blue-300 shadow-lg backdrop-blur-sm animate-pulse">
                         <span className="text-xl">🛡️</span>
                         <div className="flex flex-col leading-tight">
                             <span className="text-xs font-bold uppercase opacity-90">Shield</span>
@@ -590,7 +604,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                     </div>
                 )}
                 {activeBoosts.slowMo > 0 && (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-slate-500 to-slate-600 text-white px-3 py-2 rounded-xl border-2 border-slate-300 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-2 bg-linear-to-r from-slate-500 to-slate-600 text-white px-3 py-2 rounded-xl border-2 border-slate-300 shadow-lg backdrop-blur-sm">
                         <span className="text-xl">🐌</span>
                         <div className="flex flex-col leading-tight">
                             <span className="text-xs font-bold uppercase opacity-90">Slow Mo</span>
@@ -599,7 +613,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                     </div>
                 )}
                 {activeBoosts.scorex2 > 0 && (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-2 rounded-xl border-2 border-yellow-300 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-2 bg-linear-to-r from-yellow-500 to-orange-500 text-white px-3 py-2 rounded-xl border-2 border-yellow-300 shadow-lg backdrop-blur-sm">
                         <span className="text-xl">✖️2️⃣</span>
                         <div className="flex flex-col leading-tight">
                             <span className="text-xs font-bold uppercase opacity-90">2x Score</span>
@@ -608,7 +622,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                     </div>
                 )}
                 {activeBoosts.tinyBird > 0 && (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-xl border-2 border-purple-300 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-2 bg-linear-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-xl border-2 border-purple-300 shadow-lg backdrop-blur-sm">
                         <span className="text-xl">🐥</span>
                         <div className="flex flex-col leading-tight">
                             <span className="text-xs font-bold uppercase opacity-90">Tiny</span>
@@ -617,7 +631,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                     </div>
                 )}
                 {activeBoosts.widePipes > 0 && (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-2 rounded-xl border-2 border-green-400 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-2 bg-linear-to-r from-green-600 to-green-700 text-white px-3 py-2 rounded-xl border-2 border-green-400 shadow-lg backdrop-blur-sm">
                         <span className="text-xl">🚪</span>
                         <div className="flex flex-col leading-tight">
                             <span className="text-xs font-bold uppercase opacity-90">Wide Pipes</span>
@@ -631,7 +645,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             <div className="absolute top-20 left-10 text-6xl opacity-50 animate-pulse">☁️</div>
             <div className="absolute top-40 right-20 text-6xl opacity-50 animate-pulse delay-700">☁️</div>
             <div className="absolute top-32 left-1/2 text-5xl opacity-40 animate-pulse delay-500">☁️</div>
-            
+
             {/* Sun */}
             <div className="absolute top-5 right-5 w-16 h-16 bg-yellow-300 rounded-full shadow-[0_0_30px_rgba(250,204,21,0.6)] opacity-80" />
 
@@ -745,7 +759,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                 </div>
 
                 {!gameStarted && !gameOver && (
-                    <div 
+                    <div
                         className="absolute inset-0 flex flex-col items-center justify-center pointer-events-auto z-50 bg-slate-900"
                         onClick={(e) => {
                             // Only allow clicking on the background, not on inputs/buttons
@@ -771,7 +785,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                         </div>
 
                         {/* Login / Start Card */}
-                        <div 
+                        <div
                             className="bg-white p-6 rounded-2xl border-4 border-slate-800 shadow-[0_8px_0_rgba(0,0,0,0.5)] flex flex-col items-center gap-4 w-[320px] animate-in slide-in-from-bottom-10 fade-in duration-300"
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -808,16 +822,28 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                                         placeholder="Enter your name..."
                                         className="w-full px-4 py-4 rounded-xl border-3 border-slate-300 font-bold text-center text-slate-800 text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all placeholder:text-slate-400 bg-slate-50"
                                         value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            setUsername(e.target.value);
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                        }}
                                         onMouseDown={(e) => e.stopPropagation()}
                                         onTouchStart={(e) => e.stopPropagation()}
+                                        onFocus={(e) => e.stopPropagation()}
+                                        onBlur={(e) => e.stopPropagation()}
                                         onKeyDown={(e) => {
                                             e.stopPropagation();
                                             if (e.key === 'Enter' && username.trim()) {
+                                                e.preventDefault();
                                                 jump();
                                             }
                                         }}
+                                        onKeyUp={(e) => e.stopPropagation()}
+                                        onKeyPress={(e) => e.stopPropagation()}
                                         maxLength={15}
                                         autoFocus
                                     />
@@ -828,14 +854,15 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                             )}
 
                             <button
-                                className="w-full bg-green-500 hover:bg-green-400 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 px-6 rounded-xl border-b-4 border-green-700 disabled:border-slate-400 active:border-b-0 active:translate-y-1 transition-all text-xl shadow-lg flex items-center justify-center gap-3"
+                                className="w-full bg-green-500 hover:bg-green-400 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 px-6 rounded-xl border-b-4 border-green-700 disabled:border-slate-400 active:border-b-0 active:translate-y-1 disabled:active:translate-y-0 transition-all text-xl shadow-lg flex items-center justify-center gap-3"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (username.trim() || username) {
+                                    e.preventDefault();
+                                    if (username.trim()) {
                                         jump();
                                     }
                                 }}
-                                disabled={!username && !username.trim()}
+                                disabled={!username.trim()}
                             >
                                 <span>START GAME</span>
                                 <span className="text-2xl">▶️</span>
@@ -850,7 +877,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                         {BOOSTS.map(boost => {
                             const count = inventory[boost.id] || 0;
                             const isAvailable = count > 0;
-                            
+
                             return (
                                 <button
                                     key={boost.id}
@@ -865,15 +892,15 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                                     `}
                                 >
                                     <span className={isAvailable ? 'animate-pulse' : ''}>{boost.emoji}</span>
-                                    
+
                                     {/* Count Badge - Enhanced */}
-                                    <div className={`absolute -top-2 -right-2 ${count > 0 ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-slate-500'} text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white shadow-lg ${count > 0 ? 'animate-bounce' : ''}`}>
+                                    <div className={`absolute -top-2 -right-2 ${count > 0 ? 'bg-linear-to-br from-red-500 to-red-600' : 'bg-slate-500'} text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white shadow-lg ${count > 0 ? 'animate-bounce' : ''}`}>
                                         {count}
                                     </div>
-                                    
+
                                     {/* Glow effect when available */}
                                     {isAvailable && (
-                                        <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-white/20 to-transparent pointer-events-none" />
+                                        <div className="absolute inset-0 rounded-xl bg-linear-to-t from-white/20 to-transparent pointer-events-none" />
                                     )}
                                 </button>
                             );
@@ -888,13 +915,13 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                         <h2 className="text-6xl md:text-7xl font-black text-red-500 mb-8 drop-shadow-[0_6px_0_rgba(0,0,0,1)] stroke-black animate-in slide-in-from-top" style={{ WebkitTextStroke: '2px black' }}>
                             GAME OVER
                         </h2>
-                        
-                        <div className="bg-gradient-to-br from-yellow-100 to-orange-100 p-8 rounded-3xl border-4 border-black text-center shadow-[0_12px_0_rgba(0,0,0,1)] max-w-md w-full mx-4 animate-in slide-in-from-bottom">
+
+                        <div className="bg-linear-to-br from-yellow-100 to-orange-100 p-8 rounded-3xl border-4 border-black text-center shadow-[0_12px_0_rgba(0,0,0,1)] max-w-md w-full mx-4 animate-in slide-in-from-bottom">
                             <div className="flex items-center justify-center gap-3 mb-4">
                                 <span className="text-4xl">💰</span>
                                 <p className="text-2xl text-orange-800 font-bold uppercase tracking-wide">Coins Earned</p>
                             </div>
-                            <p className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 to-orange-600 mb-2">
+                            <p className="text-8xl font-black text-transparent bg-clip-text bg-linear-to-r from-yellow-600 to-orange-600 mb-2">
                                 +{score}
                             </p>
                             <p className="text-sm text-slate-600 mb-6">
