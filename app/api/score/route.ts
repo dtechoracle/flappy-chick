@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveScore } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
     try {
@@ -10,9 +10,40 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
         }
 
-        const newScore = saveScore(username, score);
-        return NextResponse.json(newScore);
+        // Find or create user
+        let user = await prisma.user.findUnique({
+            where: { username }
+        });
+
+        if (!user) {
+            user = await prisma.user.create({
+                data: { username }
+            });
+        }
+
+        // Create score record
+        const newScore = await prisma.score.create({
+            data: {
+                score,
+                userId: user.id
+            },
+            include: {
+                user: {
+                    select: {
+                        username: true
+                    }
+                }
+            }
+        });
+
+        return NextResponse.json({
+            id: newScore.id,
+            username: newScore.user.username,
+            score: newScore.score,
+            timestamp: newScore.createdAt.toISOString()
+        });
     } catch (error) {
+        console.error('Error saving score:', error);
         return NextResponse.json({ error: 'Server Error' }, { status: 500 });
     }
 }

@@ -481,6 +481,11 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         if (gameOver) return;
 
         if (!gameStarted) {
+            // Save username to localStorage when starting the game
+            if (username.trim()) {
+                localStorage.setItem('flappy-username', username.trim());
+            }
+
             setGameStarted(true);
             setShowTooltip(false);
             playSound('jump');
@@ -492,7 +497,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             playSound('jump');
             birdVelRef.current = JUMP_STRENGTH;
         }
-    }, [gameStarted, gameOver, updatePhysics]);
+    }, [gameStarted, gameOver, updatePhysics, username]);
 
     const restartGame = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -689,18 +694,47 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
 
                         {/* Login / Start Card */}
                         <div className="bg-white p-6 rounded-2xl border-4 border-slate-800 shadow-[0_8px_0_rgba(0,0,0,0.5)] flex flex-col items-center gap-4 w-[280px] animate-in slide-in-from-bottom-10 fade-in duration-300">
-                            <div className="w-full">
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Player Name</label>
-                                <input
-                                    type="text"
-                                    placeholder="Enter Name"
-                                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 font-bold text-center text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all placeholder:text-slate-300"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    maxLength={12}
-                                />
-                            </div>
+                            {username ? (
+                                // If username exists, show welcome message with option to change
+                                <div className="w-full space-y-2">
+                                    <div className="text-center">
+                                        <p className="text-xs text-slate-500 uppercase font-bold mb-1">Welcome Back</p>
+                                        <p className="text-2xl font-black text-slate-800">
+                                            {username}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUsername('');
+                                        }}
+                                        className="text-xs text-blue-500 hover:text-blue-600 underline font-bold w-full"
+                                    >
+                                        Change Name
+                                    </button>
+                                </div>
+                            ) : (
+                                // If no username, show input
+                                <div className="w-full">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Player Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Enter Name"
+                                        className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 font-bold text-center text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all placeholder:text-slate-300"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && username.trim()) {
+                                                e.stopPropagation();
+                                                jump();
+                                            }
+                                        }}
+                                        maxLength={12}
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
 
                             <button
                                 className="w-full bg-green-500 hover:bg-green-400 text-white font-black py-4 rounded-xl border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition-all text-lg shadow-lg flex items-center justify-center gap-2"
