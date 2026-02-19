@@ -195,7 +195,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         return () => window.removeEventListener('resize', handleResize);
     }, [gameStarted, gameOver]);
 
-    // Load username from session (server-side)
+    // Load username from session (server-side) - Only load once on mount
     useEffect(() => {
         const fetchSession = async () => {
             try {
@@ -208,8 +208,12 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                 console.error('Failed to load session:', error);
             }
         };
-        fetchSession();
-    }, []);
+
+        // Only fetch if username is not already set
+        if (!username) {
+            fetchSession();
+        }
+    }, []); // Empty dependency array - only run once on mount
 
     // Socket.io Multiplayer Setup
     useEffect(() => {
@@ -230,11 +234,10 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
 
             // Receive initial players list
             socket.on("current_players", (players: OtherPlayer[]) => {
+                console.log("Received current players:", players);
                 const playersMap: Record<string, OtherPlayer> = {};
                 players.forEach(player => {
-                    if (player.id !== socket.id) {
-                        playersMap[player.id] = player;
-                    }
+                    playersMap[player.id] = player;
                 });
                 setOtherPlayers(playersMap);
                 setPlayerCount(players.length + 1); // +1 for self
@@ -242,13 +245,12 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
 
             // New player joined
             socket.on("player_joined", (player: OtherPlayer) => {
-                if (player.id !== socket.id) {
-                    setOtherPlayers(prev => ({
-                        ...prev,
-                        [player.id]: player
-                    }));
-                    setPlayerCount(prev => prev + 1);
-                }
+                console.log("Player joined:", player);
+                setOtherPlayers(prev => ({
+                    ...prev,
+                    [player.id]: player
+                }));
+                setPlayerCount(prev => prev + 1);
             });
 
             // Player moved
@@ -273,7 +275,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                 socket.disconnect();
             };
         }
-    }, [gameMode, username]);
+    }, [gameMode, username, gameStarted]);
 
     // Save Score
     const saveScore = async (finalScore: number) => {
@@ -468,12 +470,10 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         // Sync boosts state for UI
         setActiveBoosts({ ...activeBoostsRef.current });
 
-        // Emit position to server in multiplayer mode (throttled to ~every 3 frames = ~20 updates/sec)
-        if (gameMode === "multiplayer" && socketRef.current && animationFrameId.current % 3 === 0) {
-            distanceRef.current += currentPipeSpeed;
+        // Emit position to server in multiplayer mode (every frame for smooth updates)
+        if (gameMode === "multiplayer" && socketRef.current) {
             socketRef.current.emit("fly", {
                 y: birdPosRef.current,
-                distance: distanceRef.current,
                 rotation: rotation,
                 isDead: false,
                 score: scoreRef.current
@@ -511,23 +511,33 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             lastPipeTimeRef.current = performance.now();
             lastTimeRef.current = performance.now();
             animationFrameId.current = requestAnimationFrame(updatePhysics);
+
+            // Emit initial position for multiplayer
+            if (gameMode === "multiplayer" && socketRef.current) {
+                socketRef.current.emit("fly", {
+                    y: birdPosRef.current,
+                    rotation: 0,
+                    isDead: false,
+                    score: 0
+                });
+            }
         } else {
             playSound('jump');
             birdVelRef.current = JUMP_STRENGTH;
         }
-    }, [gameStarted, gameOver, updatePhysics]);
+    }, [gameStarted, gameOver, updatePhysics, gameMode]);
 
     const restartGame = (e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
-        initAudio(); // Ensure audio context is resumed
+        initAudio();
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
 
         birdPosRef.current = gameHeight / 2;
         birdVelRef.current = 0;
         pipesRef.current = [];
         scoreRef.current = 0;
-        distanceRef.current = 0; // Reset multiplayer distance
+        distanceRef.current = 0;
         lastPipeTimeRef.current = performance.now();
         lastTimeRef.current = performance.now();
 
@@ -539,28 +549,25 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             shield: 0, slowMo: 0, scorex2: 0, tinyBird: 0, widePipes: 0
         });
         invincibleUntilRef.current = 0;
+        setInvincibleUntil(0);
 
         setGameOver(false);
         setScore(0);
         setBirdPos(gameHeight / 2);
         setPipes([]);
+        setBirdRotation(0);
         setShowTooltip(true);
 
-        // Keep username, just restart the game directly if we have one
-        if (usernameRef.current && usernameRef.current.trim()) {
-            // Start game immediately with existing username
-            setTimeout(() => {
-                setGameStarted(true);
-                setShowTooltip(false);
-                playSound('jump');
-                birdVelRef.current = JUMP_STRENGTH;
-                lastPipeTimeRef.current = performance.now();
-                lastTimeRef.current = performance.now();
-                animationFrameId.current = requestAnimationFrame(updatePhysics);
-            }, 100);
-        } else {
-            setGameStarted(false);
-        }
+        // Start game immediately with existing username (no need to ask again)
+        setTimeout(() => {
+            setGameStarted(true);
+            setShowTooltip(false);
+            playSound('jump');
+            birdVelRef.current = JUMP_STRENGTH;
+            lastPipeTimeRef.current = performance.now();
+            lastTimeRef.current = performance.now();
+            animationFrameId.current = requestAnimationFrame(updatePhysics);
+        }, 50);
     };
 
     useEffect(() => {
@@ -606,11 +613,11 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         >
             {/* Multiplayer Player Count Indicator - Enhanced */}
             {gameMode === "multiplayer" && (
-                <div className="absolute top-2 right-2 bg-linear-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 z-50 pointer-events-none border-2 border-white/40 shadow-lg backdrop-blur-sm">
-                    <span className="text-lg animate-pulse">👥</span>
+                <div className="absolute top-2 right-2 bg-linear-to-r from-blue-500 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 z-50 pointer-events-none border-2 border-white/60 shadow-xl backdrop-blur-sm animate-pulse">
+                    <span className="text-lg">👥</span>
                     <div className="flex flex-col leading-tight">
-                        <span className="text-xs opacity-80 uppercase">Online</span>
-                        <span className="text-lg font-black">{playerCount} Player{playerCount !== 1 ? 's' : ''}</span>
+                        <span className="text-xs opacity-90 uppercase tracking-wide">Multiplayer</span>
+                        <span className="text-lg font-black">{playerCount} Online</span>
                     </div>
                 </div>
             )}
@@ -707,28 +714,28 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                 />
             )}
 
-            {/* Other Players (Multiplayer) */}
+            {/* Other Players (Multiplayer) - Rendered at their position */}
             {gameMode === "multiplayer" && Object.values(otherPlayers).map((player) => (
                 <div
                     key={player.id}
-                    className="absolute flex flex-col items-center z-20 transition-all duration-100"
+                    className="absolute flex flex-col items-center z-20 transition-all duration-100 ease-linear"
                     style={{
-                        top: player.y,
-                        left: 50,
+                        top: player.y || gameHeight / 2,
+                        left: 120, // Offset to the right of local player
                         width: INITIAL_BIRD_SIZE,
                         height: INITIAL_BIRD_SIZE,
-                        transform: `rotate(${player.rotation}deg)`,
-                        opacity: player.isDead ? 0.3 : 0.7,
+                        transform: `rotate(${player.rotation || 0}deg)`,
+                        opacity: player.isDead ? 0.4 : 0.8,
                     }}
                 >
                     {/* Other Player Name Tag */}
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap pointer-events-none">
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-linear-to-r from-blue-600 to-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap pointer-events-none border border-white/40 shadow-lg">
                         {player.name}
-                        {player.score !== undefined && ` (${player.score})`}
+                        {player.score !== undefined && player.score > 0 && ` • ${player.score}`}
                     </div>
 
                     {/* Other Player Bird */}
-                    <div style={{ fontSize: '2rem' }}>
+                    <div style={{ fontSize: '2rem' }} className={player.isDead ? 'grayscale' : ''}>
                         {player.isDead ? '💀' : '🐦'}
                     </div>
                 </div>
@@ -846,18 +853,13 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                                         className="w-full px-4 py-4 rounded-xl border-3 border-slate-300 font-bold text-center text-slate-800 text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all placeholder:text-slate-400 bg-slate-50"
                                         value={username}
                                         onChange={(e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
                                             setUsername(e.target.value);
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            e.preventDefault();
                                         }}
                                         onMouseDown={(e) => e.stopPropagation()}
                                         onTouchStart={(e) => e.stopPropagation()}
-                                        onFocus={(e) => e.stopPropagation()}
-                                        onBlur={(e) => e.stopPropagation()}
                                         onKeyDown={(e) => {
                                             e.stopPropagation();
                                             if (e.key === 'Enter' && username.trim()) {
@@ -865,9 +867,7 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
                                                 jump();
                                             }
                                         }}
-                                        onKeyUp={(e) => e.stopPropagation()}
-                                        onKeyPress={(e) => e.stopPropagation()}
-                                        maxLength={15}
+                                        maxLength={20}
                                         autoFocus
                                     />
                                     <p className="text-xs text-slate-500 text-center">
