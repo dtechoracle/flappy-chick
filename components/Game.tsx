@@ -483,17 +483,24 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         animationFrameId.current = requestAnimationFrame(updatePhysics);
     }, [gameHeight, gameWidth]); // Removed activeBoosts from dependency to avoid recreation loop issues
 
+    // Use ref for username to avoid recreating jump function on every keystroke
+    const usernameRef = useRef(username);
+    useEffect(() => {
+        usernameRef.current = username;
+    }, [username]);
+
     const jump = useCallback(() => {
         initAudio();
         if (gameOver) return;
 
         if (!gameStarted) {
             // Save username to session when starting the game
-            if (username.trim()) {
+            const currentUsername = usernameRef.current.trim();
+            if (currentUsername) {
                 fetch('/api/auth/session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: username.trim() })
+                    body: JSON.stringify({ username: currentUsername })
                 }).catch(err => console.error('Failed to save session:', err));
             }
 
@@ -508,10 +515,11 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
             playSound('jump');
             birdVelRef.current = JUMP_STRENGTH;
         }
-    }, [gameStarted, gameOver, updatePhysics, username]);
+    }, [gameStarted, gameOver, updatePhysics]);
 
     const restartGame = (e: React.MouseEvent) => {
         e.stopPropagation();
+        e.preventDefault();
         initAudio(); // Ensure audio context is resumed
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
 
@@ -537,7 +545,22 @@ export default function Game({ inventory, setInventory, onGameOver, gameMode }: 
         setBirdPos(gameHeight / 2);
         setPipes([]);
         setShowTooltip(true);
-        setGameStarted(false);
+
+        // Keep username, just restart the game directly if we have one
+        if (usernameRef.current && usernameRef.current.trim()) {
+            // Start game immediately with existing username
+            setTimeout(() => {
+                setGameStarted(true);
+                setShowTooltip(false);
+                playSound('jump');
+                birdVelRef.current = JUMP_STRENGTH;
+                lastPipeTimeRef.current = performance.now();
+                lastTimeRef.current = performance.now();
+                animationFrameId.current = requestAnimationFrame(updatePhysics);
+            }, 100);
+        } else {
+            setGameStarted(false);
+        }
     };
 
     useEffect(() => {
